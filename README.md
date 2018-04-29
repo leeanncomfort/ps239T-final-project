@@ -11,7 +11,7 @@ LIWC 2015, from liwc.net
 liwc_one_<YYYY-MM-DD>.csv: Results of the LIWC analysis for all wave 1 interviews, where observation is a question/response that was analyzed independently.
 
 ### Code
-00_Prepare Transcripts.rmd: Transforms Word document files into csv files, where each observation is an entire question or response..
+00_Prepare Transcripts.rmd: Transforms Word document files into csv files, where each observation is an entire question or response.  
 01_  
 02_  
 03_  
