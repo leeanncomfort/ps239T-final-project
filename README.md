@@ -3,7 +3,7 @@
 ## Short Description
 
 ## Dependencies
-R, version 3.4.3
+R, version 3.4.3  
 LIWC 2015, from liwc.net
 
 ## Files
@@ -12,12 +12,12 @@ liwc_one_<YYYY-MM-DD>.csv: Results of the LIWC analysis for all wave 1 interview
 
 ### Code
 00_Prepare Transcripts.rmd: Transforms Word document files into csv files, where each observation is an entire question or response..
-01_
-02_
-03_
+01_  
+02_  
+03_  
 
 ### Results
 
 ## More Information
-Creator: Leeann Comfort, leeann.comfort@berkeley.edu
+Creator: Leeann Comfort, leeann.comfort@berkeley.edu  
 Course Instructor (Spring 2018): Rachel Bernhard, rbernhard@berkeley.edu
