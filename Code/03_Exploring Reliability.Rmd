@@ -1,0 +1,57 @@
+---
+title: "03_LIWC and RC"
+author: "Leeann Comfort"
+date: "May 1, 2018"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "C:/Users/leeann.comfort/Box Sync/ps239T-final-project/Box Sync/ps239T-final-project")
+
+#install.packages("ICC")
+  #Documentation: https://cran.r-project.org/web/packages/ICC/ICC.pdf
+library(ggplot2)
+library(dplyr)
+library(lattice)
+library(ICC)
+library(tidyverse)
+
+df <- read.csv("./Data/liwc_one_2018-04-28.csv")
+```
+
+
+# Assessing Within-Person Agreement of LIWC Measures
+
+Estimates the ICC and confidence intervals using the variance components from a one-way ANOVA
+```{r}
+# Create a list of the "dependent variables" by removing the interviewee/site data:
+DVs <- names(df)
+DVs <- DVs[-c(1:6)]
+print(DVs)
+
+
+# Calculates ICC scores for each of the Dependent variables (creates a list of lists)
+temp <-  lapply(DVs, function(x) ICCest(speakanon, x, data = df, alpha = 0.05, CI.type = c("THD", "Smith")))
+
+# Turns the list of lists into a data frame
+ICC_results <-  map_df(temp, ~bind_rows(.), .id="EXP")  %>% 
+                cbind.data.frame(DVs)
+
+
+ggsave("~/Box Sync/Berkeley/Fall 2016/PolSci239T/PS239T-final-project/Results/03_wlb-comp-univariate-graphs.pdf"
+
+
+```
+
+
+
+
+xyplot(Clout~Authentic|as.factor(speakanon),data=df2, 
+       type=c("p","g","r"), 
+       col="dark blue", 
+       col.line="black", 
+       xlab="authentic", 
+       ylab="clout")
+
+
+names(df2)

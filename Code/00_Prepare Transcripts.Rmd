@@ -1,0 +1,60 @@
+---
+title: "00_Preparing Transcripts for LIWC Analysis"
+author: "Leeann Comfort"
+date: "May 01, 2018"
+output: html_document
+---
+
+## Overview
+ **Purpose**  
+  - This file transforms the raw interview transcripts (Wave 1 only), stored as copies of the original .docx files, into .csv files  
+ 
+ **Output**   
+   - A series of .csv files to the folder in which transcripts are stored
+ 
+ **Notes**  
+ - The .csv output files are organized so that each question/response is one observation  
+ - Neither the original nor the transformed files are saved to github; the raw data is restricted per IRB protocol (ID: 2015-04-7512)   
+ - The `read_transcript` function does not save any of the interviewee identifiers, that information is saved only in the filename
+ - After the files are created, the files must be uploaded & processed by LIWC2015 software (liwc.net)  
+ - R/RStudio would intermittently fail to recognize the secure network drive; this version of code runs off local computer desktop as temporary work-around  
+
+******************  
+
+## Setup
+```{r setup, warning=FALSE, results=FALSE}
+knitr::opts_knit$set(root.dir = "C:/Users/leeann.comfort/Desktop/Data")
+
+# textreadr is used to read in word files as transcripts in csv format, where each observation is a question/response (used in line 31) 
+install.packages("textreadr", repos="http://cran.rstudio.com/")
+library(textreadr)  
+```
+
+## File Transformation
+```{r, warning=FALSE}
+# Create a list of all the files we need to transform
+files <- list.files(path="./WAVE 1 - Transcripts", pattern="*.docx", full.names=T, recursive=FALSE)
+
+# Saves the path length (in case the files ever move)
+pl <- nchar("C:/Users/leeann.comfort/Desktop/Data/WAVE 1 - Transcripts")
+
+# Creates a function to transform, rename, and save the document
+func <- function(x) {
+  # Reads in the file, with each response in a separate line (the skip=1)
+  t1 <- read_transcript(x, skip = 1) 
+  
+  # Generates a file name by stripping the path  & changing the extension
+  name <- paste0(substr(x,pl,nchar(x)-5),".csv")  
+  
+  # writes the file to a csv using the previously generated file name (nothing stored in environment)
+  write.csv(t1, file=name)  
+  }
+
+# Apply the function to each of files in the folder
+invisible(lapply(files, func))
+
+# Confirm files written correctly
+# list.files(pattern="*.csv", full.names=T, recursive=FALSE) 
+```
+
+**Note:** The final `list.files` results are redacted from the github version because the filenames contain identifiable information
