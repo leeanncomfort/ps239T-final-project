@@ -1,204 +1,292 @@
 ---
 title: "02 Exploratory Analyses"
 author: "Leeann Comfort"
-date: "April 28, 2018"
+date: "May 1, 2018"
 output: html_document
 ---
 
-```{r setup}
-knitr::opts_knit$set(root.dir = "C:/Users/leeann.comfort/Desktop/Data")
-rm(list=ls())
+
+## Overview  
+ **Purpose**  
+To calculate and compare intraclass coefficients for LIWC measures 
+To visualize the LIWC2015 results, comparing the language use by:  
+
+  * high- and low-performing organizations  
+  * high- and low-performing sites  
+  * role (doctor, nurse, medical assistant) of interviewee  
+  * interviewer/interviewee  
+
+ 
+ **Output**   
+8 .png files, 2 for each comparison group (summary measures, non-summary measures): 
+
+  * high- and low-performing organizations  
+  * high- and low-performing sites  
+  * role (doctor, nurse, medical assistant) of interviewee  
+  * interviewer/interviewee  
+  
+2 .png file of plotted ICC scores for all variables:
+
+  * Within-individual ICCs
+  * Within-site ICCs  
+ 
+ **Notes**  
+*  Output produces large files (20"x10") for scrolling; do not attempt to print
+*  Planned updates: to update the visualizations by group into a function  
+*  Summary measures are the 4 measures new to LIWC2015 (Analytic, Clout, Authentic, and Tone); 
+    non-summary measures are all the other LIWC measures  
+
+****************
+
+## Setup
+```{r setup, results='hide', message=FALSE, warning=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/comfort/Box Sync/ps239T-final-project")
+# dir <- .libPaths()
+# install.packages("ggplot2", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+# install.packages("purrr", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+# install.packages("dplyr", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+# install.packages("reshape", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+# install.packages("ICC", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+# install.packages("tidyr", repos = "https://cran.cnr.berkeley.edu/", destdir = dir)
+
 library(ggplot2)
-library(gridExtra)
-library(grid)
-library(tidyr)
 library(purrr)
 library(dplyr)
 library(reshape)
-df <- read.csv("C:/Users/leeann.comfort/Desktop/Data/liwc_one_2018-05-01.csv")
-df <- liwc_one
-names(df)
+library(ICC)
+library(tidyr)
+
+
 ```
 
+### Create long data frames
+```{r clean up}
+df <- read.csv("./Data/liwc_one_2018-05-02.csv")  #
 
-## Comparing High & Low Performing ACOs
-These sections create basic, non-publication-worthy visuals just for the purposing of assessing the data
-
-### Main Summary Variables
-Summary variables are separated from the other variables because they tend to distort the shared graph axes
-```{r }
-# Select only the 4 Summary variables and the interviewee identifiers, then ansorm data in long format (so that DVs can be used as a facet)
-  df_summary <- df[,c("aco", "perf", "site", "workgroup_collapsed", "speakanon","Analytic", "Clout", "Authentic","Tone")] %>% 
-                melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
- 
-# Generate graphs for each variable
-    ggplot(df_summary, aes(x=perf, y=value)) + geom_boxplot() + facet_wrap(~variable) + 
-      ylab("Summary Measure Score") + 
-      xlab("High/Low Performing")
-    ggsave(filename = "HL_SummaryVars.png", device='png')
-  
-```
-
-### Graphs for other (non-summary) Variables
-```{r}
-#Select everything BUT the 4 Summary variables 
-# Words-Per-Sentence also not included because it's largely influenced by the transcriber
-  df_nonsum <- df[, !names(df) %in% c("X", "WC", "Analytic", "Clout", "Authentic", "Tone", "WPS")] %>% 
-               melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
-
-# Generate graphs for each variable  
-# Note that ggsave specifies a large area so that all graphs appear together in a scroll-able file for exploratory viewing
-  ggplot(df_nonsum, aes(x=perf, y=value)) + geom_boxplot() + facet_wrap(~variable) + ylab("Proportion of Words") + xlab("High/Low Performing")
-  ggsave(filename = "HL_NonSummaryVars.png", width = 10, height = 20, dpi = 150, units = "in", device='png')
-```
+# Transform workgroup, site, aco, perform into factor, shorten name
+df$speakid <- as.factor(df$speakanon)
+df$role <- as.factor(df$workgroup_collapsed)
+df$site <- as.factor(df$site)
+df$aco <- as.factor(df$aco)
+df$perform <- as.factor(df$perform)
 
 
-## Compare Interviewer v. Interviewee Data
-These analyses were used to determine that the interviewer language was fairly different from the interviewee data (for the summary variables), and so should be removed from statistical analyses (to remove noise)
-```{r}
-#Created a version of the dataset where the speaker IDs were characters so that all the interviewees could be recoded as "respondent"
-df_int <- df
+
+# Transform speakanon IDs to characters so that all the interviewees could be recoded as "respondent"
 df$speakanon <- as.character(df$speakanon)
 df$speakanon[df$speakanon != "interviewer"] = "respondent"
+
+
+# Drop observations where site == 0 
+# (2 management interviews, only in the high performing sites so not comparable to low performing sites)
+df <- df[!(df$site==0),]
+
+# Some clean up, dropping unneeded varaibles, rearranging order of variables
+df <- df[ , -which(names(df) %in% c("workgroup_collapsed", "X", "WPS", "WC"))]
+df <- df %>% select(aco, perform, site, role, speakanon, speakid, everything())
+
+# Note: subsetting the variables directly in ggplot seems to run pretty slowly, so this creates standalone dfs
+dfl <- melt(df, id=c("aco", "perform", "site", "role", "speakanon", "speakid")) 
+
+# Long dataset; Identifiers & Summary Variables Only
+dfl_sum <- dfl[ which(dfl$variable=='Analytic' | 
+                      dfl$variable=='Clout' |
+                      dfl$variable=='Authentic' |
+                      dfl$variable=='Tone' ), ]
+
+# Long dataset; Identifiers & Non-Summary Variables Only
+dfl_nsm <- dfl[ which(dfl$variable!='Analytic' & 
+                      dfl$variable!='Clout' &
+                      dfl$variable!='Authentic' &
+                      dfl$variable!='Tone' ), ]
+
+# Long dataset, respondents only
+dflr <- dfl[ which(dfl$speakanon=='respondent'), ]
+
+# Long dataset, respondents only; Identifiers & Summary Variables Only
+dflr_sum <- dflr[ which(dflr$variable=='Analytic' | 
+                        dflr$variable=='Clout' |
+                        dflr$variable=='Authentic' |
+                        dflr$variable=='Tone' ), ]
+
+# Long dataset, respondents only; Identifiers & Non-Summary Variables Only
+dflr_nsm <- dflr[ which(dflr$variable!='Analytic' & 
+                        dflr$variable!='Clout' &
+                        dflr$variable!='Authentic' &
+                        dflr$variable!='Tone' ), ]
+
+
 ```
 
 
-### Main Summary Variables
-As before, summary variables are separated from the other variables because they tend to distort the shared graph axes
-```{r}
-# Select only the 4 Summary variables and the interviewee identifiers, then ansorm data in long format (so that DVs can be used as a facet)
-  df_int_summary <- df_int[,c("aco", "perf", "site", "workgroup_collapsed", "speakanon","Analytic", "Clout", "Authentic","Tone")] %>% 
-                  melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
 
-# Generate graphs for each variable
-  ggplot(df_int_summary, aes(x=speakanon, y=value)) + geom_boxplot() + facet_wrap(~variable) + 
-    ylab("Summary Measure Score") + 
-    xlab("Interviewers v. Respondents")
-  
-  ggsave(filename = "IR_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png')
+## Comparisons
+Create datasets in long format (so that variables can be used as facets).  
+Summary variables are presented separately from the other variables because they tend to distort the shared graph axes
 
-```
 
-### Graphs for other (non-summary) Variables
-```{r}
-#Select everything BUT the 4 Summary variables 
-# Words-Per-Sentence also not included because it's largely influenced by the transcriber
-  df_int_nonsum <- df_int[, !names(df_int) %in% c("X", "WC", "Analytic", "Clout", "Authentic", "Tone", "WPS")] %>% 
-                    melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
+### By High & Low Performing Organizations
+```{r, warning=F}
+# Generate graphs for Summary Variables
+  ggplot(dflr_sum, aes(x=perform, y=value)) +
+      geom_boxplot() + 
+      facet_wrap(~variable) + 
+      ylab("Summary Measure Score") + 
+      xlab("High/Low Performing")
+    
+  ggsave(filename = "HL_SummaryVars.png", device='png', path="./Results/")
 
-# Generate graphs for each variable  
-# Note that ggsave specifies a large area so that all graphs appear together in a scroll-able file for exploratory viewing
-  ggplot(df_int_nonsum, aes(x=speakanon, y=value)) + geom_boxplot() + facet_wrap(~variable) +
+# Generate graphs for Non-Summary Variables
+  #These are so big that it only makes sense to scroll through the actual files
+invisible(
+  ggplot(dflr_nsm, aes(x=perform, y=value)) +
+    geom_boxplot() + 
+    facet_wrap(~variable) + 
     ylab("Proportion of Words") + 
-    xlab("Interviewers v. Respondents")
-  ggsave(filename = "IR_NonSummary.png", width = 10, height = 20, dpi = 150, units = "in", device='png')
+    xlab("High/Low Performing")
+)
+  ggsave(filename = "HL_NonSummaryVars.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
 
 ```
 
 
-## Compare Data By Site
+### By Sites
 ```{r}
-#Create a version of the dataset where the site is a factor
-df_site <- df
-df_site$site <- as.factor(df_site$site)
+  ggplot(dflr_sum, aes(x=site, y=value, color=perform)) +
+      geom_boxplot() + 
+      facet_wrap(~variable) + 
+      ylab("Summary Measure Score") + 
+      xlab("Sites") +
+      theme(axis.text.x=element_text(angle=90, hjust=1))
 
-# Drop observations where site == 0 (2 management interviews, only in the high performing sites so not comparable to low performing sites)
-df_site <- df_site[!(df_site$site==0),]  
-```
+  ggsave(filename = "Site_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
 
 
-### Main Summary Variables
-As before, summary variables are separated from the other variables because they tend to distort the shared graph axes
-```{r}
-# Select only the 4 Summary variables and the interviewee identifiers, then ansorm data in long format (so that DVs can be used as a facet)
-  df_site_summary <- df_site[,c("aco", "perf", "site", "workgroup_collapsed", "speakanon","Analytic", "Clout", "Authentic","Tone")] %>% 
-                     melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
-
-#Generate graphs for each variable
-  ggplot(df_site_summary, aes(x=site, y=value, color=perf)) + geom_boxplot() + facet_wrap(~variable) + 
-    ylab("Summary Measure Score") + 
-    xlab("Sites")
-  
-  
-  ggsave(filename = "Site_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png')
-
-```
-
-### Graphs for other (non-summary) Variables
-```{r}
-#Select everything BUT the 4 Summary variables 
-# Words-Per-Sentence also not included because it's largely influenced by the transcriber
-  df_site_nonsum <- df_site[, !names(df_site) %in% c("X", "WC", "Analytic", "Clout", "Authentic", "Tone", "WPS")] %>% 
-                    melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
-
-# Generate graphs for each variable  
-# Note that ggsave specifies a large area so that all graphs appear together in a scroll-able file for exploratory viewing
-  ggplot(df_site_nonsum, aes(x=site, y=value, color=perf)) + geom_boxplot() + facet_wrap(~variable) +
+# Generate graphs for Non-Summary Variables
+  #These are so big that it only makes sense to scroll through the actual files
+invisible(  
+  ggplot(dflr_nsm, aes(x=site, y=value, color=perform)) +
+    geom_boxplot() +
+    facet_wrap(~variable) +
     ylab("Proportion of Words") + 
-    xlab("Sites")
+    xlab("Sites") +
+    theme(axis.text.x=element_text(angle=90, hjust=1))
+)
   
-  ggsave(filename = "Site_NonSummary.png", width = 20, height = 40, dpi = 150, units = "in", device='png')
-
+  ggsave(filename = "Site_NonSummary.png", width = 20, height = 40, dpi = 150, units = "in", device='png', path="./Results/")
+  
 ```
 
-
-
-
-## Compare Data By Role
+### By Roles
 ```{r}
-#Create a version of the dataset where the role is a factor
-df_role <- df
-df_role$role <- as.factor(df_role$workgroup_collapsed)
-```
-
-
-### Main Summary Variables
-As before, summary variables are separated from the other variables because they tend to distort the shared graph axes
-```{r}
-# Select only the 4 Summary variables and the interviewee identifiers, then ansorm data in long format (so that DVs can be used as a facet)
-  df_role_summary <- df_role[,c("aco", "perf", "site", "role", "speakanon","Analytic", "Clout", "Authentic","Tone")] %>% 
-                      melt(id=c("aco", "perf", "site", "role", "speakanon"))
-
-
-# Generate graphs for each variable
-  ggplot(df_role_summary, aes(x=role, y=value, color=perf)) + geom_boxplot() + facet_wrap(~variable) + 
-    ylab("Summary Measure Score") + 
+# Generate graphs for Summary Variables
+  ggplot(dflr_sum, aes(x=role, y=value)) +
+      geom_boxplot() + 
+      facet_wrap(~variable) + 
+      ylab("Summary Measure Score") + 
     xlab("Roles")
-  
-  ggsave(filename = "Role_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png')
 
-```
+  ggsave(filename = "Role_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
 
-### Graphs for other (non-summary) Variables
-```{r}
-#Select everything BUT the 4 Summary variables 
-# Words-Per-Sentence also not included because it's largely influenced by the transcriber
-  df_site_nonsum <- df_site[, !names(df_site) %in% c("X", "WC", "Analytic", "Clout", "Authentic", "Tone", "WPS")] %>% 
-                    melt(id=c("aco", "perf", "site", "workgroup_collapsed", "speakanon"))
 
-# Generate graphs for each variable  
-# Note that ggsave specifies a large area so that all graphs appear together in a scroll-able file for exploratory viewing
-  ggplot(df_site_nonsum, aes(x=site, y=value, color=perf)) + geom_boxplot() + facet_wrap(~variable) +
+# Generate graphs for Non-Summary Variables
+  #These are so big that it only makes sense to scroll through the actual files
+invisible(
+  ggplot(dflr_nsm, aes(x=role, y=value)) +
+    geom_boxplot() +
+    facet_wrap(~variable) +
     ylab("Proportion of Words") + 
-    xlab("Sites")
-  
-  ggsave(filename = "Site_NonSummary.png", width = 20, height = 40, dpi = 150, units = "in", device='png')
-
+    xlab("Roles")
+)  
+ ggsave(filename = "Role_NonSummary.png", width = 20, height = 40, dpi = 150, units = "in", device='png', path="./Results/")
 ```
 
 
-Maybe X-Y Plots of different elements within LIWC?
-
-
+### Compare Interviewer v. Interviewee Data
+*These analyses were used to determine that the interviewer language was somewhat different from the interviewee data (for the summary variables), and so should be removed from statistical analyses (to remove noise)*
 ```{r}
 
+# Generate graphs for Summary Variables
+  ggplot(dfl_sum, aes(x=speakanon, y=value)) +
+      geom_boxplot() + 
+      facet_wrap(~variable) + 
+      ylab("Summary Measure Score") + 
+      xlab("Interviewers v. Respondents")
+    
+  ggsave(filename = "IR_Summary.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
 
-xyplot(Clout~Authentic|as.factor(speakanon),data=df2, 
-       type=c("p","g","r"), 
-       col="dark blue", 
-       col.line="black", 
-       xlab="authentic", 
-       ylab="clout")
+
+# Generate graphs for Non-Summary Variables
+  #These are so big that it only makes sense to scroll through the actual files
+invisible(
+  ggplot(dfl_nsm, aes(x=speakanon, y=value)) +
+    geom_boxplot() + 
+    facet_wrap(~variable) + 
+    ylab("Proportion of Words") + 
+    xlab("Interviewers v. Respondents") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+)
+  ggsave(filename = "IR_NonSummary.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
 
 ```
 
+
+
+## Assessing Within-Person ICCs of LIWC Measures
+Estimates the ICC and confidence intervals using the variance components from a one-way ANOVA
+```{r, warning=FALSE}
+# Create a list of the "dependent variables" by removing the interviewee/site data:
+DV <- names(df)[! names(df) %in% 
+                  c("aco", "perform", "site", "role", "speakanon", "WPS", "WC", "X", "speakid")]
+
+# Calculates person-level ICC scores for each of the Dependent variables (creates a list of lists)
+temp <-  lapply(DV, function(x) ICCest(speakid, x, data = df, alpha = 0.05, CI.type = c("THD", "Smith")))
+
+# Turns the list of lists into a data frame
+ICC_results <-  map_df(temp, ~bind_rows(.), .id="EXP")  %>% 
+                cbind.data.frame(DV) %>% 
+                arrange(ICC) 
+
+
+# Plot all the ICC values
+ggplot(ICC_results, aes(x = reorder(DV, -ICC), y=ICC)) + 
+  geom_point() +
+  geom_abline(intercept = .0222872, slope = 0) +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI)) +
+  ggtitle("Intraclass Coefficients: Within-Interviewee LIWC Scores") +
+  xlab("Measure") 
+
+ggsave(filename = "ICC_ind.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
+
+
+```
+
+
+## Assessing Within-Site ICCs of LIWC Measures
+Estimates the ICC and confidence intervals using the variance components from a one-way ANOVA
+
+```{r, warning=F}
+# Calculates site-level ICC scores for each of the Dependent variables (creates a list of lists)
+temp <-  lapply(DV, function(x) ICCest(site, x, data = df, alpha = 0.05, CI.type = c("THD", "Smith")))
+
+# Turns the list of lists into a data frame
+ICC_results_site <-  map_df(temp, ~bind_rows(.), .id="EXP")  %>% 
+                cbind.data.frame(DV) %>% 
+                arrange(ICC) 
+
+
+# Plot all the ICC values
+ggplot(ICC_results_site, aes(x = reorder(DV, -ICC), y=ICC)) + 
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI)) +
+  ggtitle("Intraclass Coefficients: Within-Interviewee LIWC Scores") +
+  xlab("Measure") 
+
+
+ggsave(filename = "ICC_site.png", width = 10, height = 20, dpi = 150, units = "in", device='png', path="./Results/")
+
+
+```
